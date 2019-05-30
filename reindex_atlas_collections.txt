@@ -1,11 +1,11 @@
 How to reindex Atlas Hive Metadata into Solr collections?
 ===========================================
 
-Description: While uploading data into Atlas metadata using the import-hive.sh from Hive DBs and tables, it seems that data cannot be indexed into Atlas Solr collection Index. The WUI from Atlas search (based search) is unable to retrieve the database-specific information to build tags. However, while executing the REST call, the metadata information is returned.
+Description: While uploading data into Atlas metadata using the import-hive.sh from Hive DBs and tables it seems that data cannot be indexed into Atlas Solr collection Index.
+The Atlas UI basic search mode is unable to retrieve elements or database-specific information to build tags; however using the advanced search mode or running REST calls successfully returns the expected information.
+What causes this issue? Those latter calls get data directly from HBase while the basic search uses data from Ambari Infra Solr collections.
 
-What causes this issue? The REST call gets the data directly from the HBase Atlas titan table, while the Atlas WUI uses the Atlas Solrs collection Index.
-
-Currently, in HDP 2.6.4, a tool (attached) is being built for the reindexing. The tool is still on very early stages of development and needs to be tested before executing in Productions environments.
+How to fix it then? Currently, for HDP 2.6 a simple script can be used for reindexing data and it is very useful, although you need to test it on a testbed environment before running it on Production since it is not part of the HDP stack and thus it is not supported nor certified by Engineering.
 
 Solution: There are two ways to solve the issue.
 
@@ -197,7 +197,7 @@ Proposal B:
                     #       "responseHeader":{
                     #       "status":0,
                     #       "QTime":0},
-                    #   "STATUS":"completed", <<< Status: completed.
+                    #   "STATUS":"completed",           <<< STATUS: completed.
 
             7b.4. Check if all collections are empty:
                 curl -u $USERNAME -p -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/select?q=*:*&distrib=false&wt=json"
