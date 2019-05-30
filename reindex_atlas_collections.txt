@@ -37,59 +37,66 @@ Proposal B:
         For example:
         vim atlas-conf/atlas-titan.properties
             storage.backend=hbase
-            # storage.hostname = HBase server host FQDN
-            storage.hostname=c239-node4.squadron-labs.com
-            # storage.hbase.table = Ambari UI > Atlas > Configs > Advanced application-properties > atlas.graph.storage.hbase.table
+            # HBase server host FQDN. Ambari UI > HBase > Configs > Advanced > HBase Master > HBase Master host
+            storage.hostname=example.cloudera.com
+            # Ambari UI > Atlas > Configs > Advanced application-properties > atlas.graph.storage.hbase.table
             storage.hbase.table=atlas_titan
-            # index.search.backend = Ambari UI > Atlas > Configs > Advanced > Advanced application-properties > atlas.graph.index.search.backend
+            # Ambari UI > Atlas > Configs > Advanced > Advanced application-properties > atlas.graph.index.search.backend
             index.search.backend=solr5
-            # mindex.search.solr.mode = Ambari UI > Atlas > Configs > Advanced > Advanced application-properties > atlas.graph.index.search.solr.mode
+            # Ambari UI > Atlas > Configs > Advanced > Advanced application-properties > atlas.graph.index.search.solr.mode
             index.search.solr.mode=cloud
-            # index.search.solr.zookeeper-url = Ambari UI > ZooKeeper > Configs > ZooKeeper Server > ZooKeeper Server hosts. Only one is needed.
-            index.search.solr.zookeeper-url=c239-node2.squadron-labs.com:2181/infra-solr
+            # Ambari UI > Atlas > Configs > Advanced > Advanced application-properties > atlas.graph.index.search.solr.zookeeper-url. Only one is
+            index.search.solr.zookeeper-url=example.cloudera.com:2181/infra-solr
 
         3.1 Also, if you are running a kerberized cluster, set up the following values as well.
             hbase.security.authentication=kerberos
             hbase.security.authorization=true
             hbase.rpc.engine=org.apache.hadoop.hbase.ipc.SecureRpcEngine
 
-    4. Update bin/atlas-gremlin.sh to set the following variables at the top. For example:
-        Note: use the command `find -L /usr/hdp/current/ -name webapp|grep atlas-server` to get the right path to webapp. you should get the value by running the following command:
-        ATLAS_WEBAPP_DIR=$(find -L /usr/hdp/current/ -name webapp|grep atlas-server)
-        echo $ATLAS_WEBAPP_DIR
-            /usr/hdp/current/atlas-server/server/webapp  <<< Use this value.
+    4. Update bin/atlas-gremlin.sh and set the following variables: ATLAS_WEBAPP_DIR, STORE_CONF_DIR, JAAS_CONF_FILE. For example:
         vim bin/atlas-gremlin.sh
             ATLAS_WEBAPP_DIR=/usr/hdp/current/atlas-server/server/webapp
             STORE_CONF_DIR=/etc/hbase/conf
 
+        If running a kerberized cluster:
+            JAAS_CONF_FILE=infra_solr_jaas.conf
+
+        Note: use the command `find -L /usr/hdp/current/ -name webapp|grep atlas-server` to get the right path to webapp. you should get the value by running the following command:
+        ATLAS_WEBAPP_DIR=$(find -L /usr/hdp/current/ -name webapp|grep atlas-server)
+        echo $ATLAS_WEBAPP_DIR
+            /usr/hdp/current/atlas-server/server/webapp  <<< Use this value.
+
     5. Ensure the home directory for 'atlas' user exists in HDFS and this directory is owned by 'atlas' user
-        su -l hdfs -c "kinit -kt /etc/security/keytabs/spnego.service.keytab HTTP/xxx.hortonworks.com &&  hdfs groups atlas"
-            Expected output: atlas:hadoop
+        su -l hdfs -c "kinit -kt /etc/security/keytabs/spnego.service.keytab HTTP/$(hostname -f) &&  hdfs groups atlas"
+            Expected output:
+                atlas : hadoop
 
-        su -l hdfs -c "kinit -kt /etc/security/keytabs/spnego.service.keytab HTTP/xxx.hortonworks.com &&  hdfs dfs -ls /user"
-            Found 2 items
-            drwxrwx---   - ambari-qa hdfs          0 2018-06-27 22:29 /user/ambari-qa
-            drwxr-xr-x   - hbase     hdfs          0 2018-06-22 21:14 /user/hbase
-        Note: I need to create the diretory.
-
-        If not using Kerberos, you can do it like this:
-            su - hdfs
-            hdfs dfs -mkdir /user/atlas && hdfs dfs -chown -R atlas:hdfs /user/atlas
-        Else:
-            su -l hdfs -c "kinit -kt /etc/security/keytabs/hdfs.headless.keytab hdfs-krbcrossrealm && hdfs dfs -mkdir /user/atlas && hdfs dfs -chown -R atlas:hdfs /user/atlas"
-            su -l hdfs -c "kinit -kt /etc/security/keytabs/spnego.service.keytab HTTP/xxx.hortonworks.com &&  hdfs dfs -ls /user/"
+        su -l hdfs -c "kinit -kt /etc/security/keytabs/spnego.service.keytab HTTP/$(hostname -f) &&  hdfs dfs -ls /user"
+            Example output:
                 Found 4 items
-                drwxrwx---   - ambari-qa hdfs          0 2018-06-27 22:29 /user/ambari-qa
-                drwxr-xr-x   - atlas     hdfs          0 2018-06-29 18:43 /user/atlas
-                drwxr-xr-x   - hbase     hdfs          0 2018-06-22 21:14 /user/hbase
-                drwx------   - hdfs      hdfs          0 2018-06-29 18:40 /user/hdfs
-            Note: the /user/atlas directory is created and given the right ownership.
+                drwxrwx---   - ambari-qa hdfs          0 2019-05-24 21:29 /user/ambari-qa
+                drwxr-xr-x   - hbase     hdfs          0 2019-05-24 21:14 /user/hbase
+                drwxr-xr-x   - hcat      hdfs          0 2019-05-24 21:31 /user/hcat
+                drwxr-xr-x   - hive      hdfs          0 2019-05-24 21:32 /user/hive
+            Note: the atlas user directory does not exist yet.
 
-    6. Copy necessary configuration files from the deployment to atlas-conf folder. For example:
-        hadoop-client/conf/core-site.xml, hdfs-site.xml, yarn-site.xml
-        ambari-infra-solr/conf/infra_solr_jaas.conf, security.json << If using kerberos
+        If using Kerberos, you can do it like this:
+            su -l hdfs -c "kinit -kt /etc/security/keytabs/hdfs.headless.keytab $(klist -k  /etc/security/keytabs/hdfs.headless.keytab | tail -n 1 | awk '{print $2}') && hdfs dfs -mkdir /user/atlas && hdfs dfs -chown -R atlas:hdfs /user/atlas"
+            su -l hdfs -c "kinit -kt /etc/security/keytabs/spnego.service.keytab HTTP/$(hostname -f) &&  hdfs dfs -ls /user/"
+            Example output:
+                Found 5 items
+                drwxrwx---   - ambari-qa hdfs          0 2019-05-24 21:29 /user/ambari-qa
+                drwxr-xr-x   - atlas     hdfs          0 2019-05-27 19:18 /user/atlas       <<< New directory
+                drwxr-xr-x   - hbase     hdfs          0 2019-05-24 21:14 /user/hbase
+                drwxr-xr-x   - hcat      hdfs          0 2019-05-24 21:31 /user/hcat
+                drwxr-xr-x   - hive      hdfs          0 2019-05-24 21:32 /user/hive
+            Note: the atlas user directory should be in the list now with the atlas:hdfs ownership.
+        Else:
+            su - hdfs
+            su -l hdfs -c "hdfs dfs -mkdir /user/atlas && hdfs dfs -chown -R atlas:hdfs /user/atlas"
 
-        Note: Use the ln commands below to create all needed symlink for this step.
+    6. Copy necessary configuration files from the deployment to atlas-conf folder: hadoop-client/conf/core-site.xml, hdfs-site.xml, yarn-site.xml; and ambari-infra-solr/conf/infra_solr_jaas.conf, security.json if using kerberos.
+        Note: you can use ln commands to create all needed symlinks for this step, for example:
             cd atlas-conf
             # Current directory: ~/titan-0.5.4-hadoop2/atlas-conf/
             ln -s /etc/hadoop/conf/hdfs-site.xml hdfs-site.xml
@@ -98,12 +105,16 @@ Proposal B:
             ln -s /etc/ambari-infra-solr/conf/infra_solr_jaas.conf infra_solr_jaas.conf # <<<  When running a secure cluster.
             ln -s /etc/ambari-infra-solr/conf/security.json security.json # <<<  When running a secure cluster.
 
-    7. Update bin/atlas-gremlin.sh to set the following variable at the top if you are running a kerberized cluster. For example:
-        JAAS_CONF_FILE=infra_solr_jaas.conf
+    8. WARNING: Before running the tool, STOP Atlas and check the Solr env, then follow the 8a steps if your cluster is kerberized or 8b otherwise:
+	Set these values:
 
-    8. WARNING: Before running the tool, STOP Atlas and let's check the Solr env, then follow the 8a steps if your cluster is kerberized or 8b otherwise:
+	INFRASOLRHOST=example.cloudera.com # The FQDN for the Ambari Infra Solr server host. Ambari Infra > Summary > Infra Solr Instance
+	INFRASOLRPORT=8886 # The Ambari Infra Solr server port. Ambari Infra > Configs > Advanced > Advanced infra-solr-env > Infra Solr port
+
+	== If you are running Kerberos on your cluster, run the following 8a steps, else, continue with 8b ==
         8a.1. Kinit as atlas user with the command line,  before running this utility:
-            kinit -kt /etc/security/keytabs/atlas.service.keytab atlas/xxx.hortonworks.com@HORTONWORKS.COM
+            kinit -kt /etc/security/keytabs/atlas.service.keytab atlas/example.cloudera.com@CLOUDERA.COM
+            kinit -kt /etc/security/keytabs/atlas.service.keytab atlas/$(hostname -f)
 
         8a.2. Check for the available collections in the Solr environment:
             curl -k --negotiate -u : "http://xxx.hortonworks.com:8886/solr/admin/collections?action=LIST&wt=json"
@@ -127,11 +138,12 @@ Proposal B:
         [End of 8a.]
         --
         8b.1. Check the available collections in the Solr environment:
-            export INFRASOLRHOST="c239-node3.squadron-labs.com"
+            export INFRASOLRHOST="example.cloudera.com"
             export INFRASOLRPORT=8886
             export USERNAME=admin
             export PASS=admin
             curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "http://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=LIST&wt=json"
+                # Example response. Please notice the "fulltext_index","vertex_index","edge_index" entries under "collections".
                 {"responseHeader":{"status":0,"QTime":0},"collections":["fulltext_index","edge_index","vertex_index"]}
 
         8a.2. Remove the indexed data from the collections:
@@ -160,8 +172,8 @@ Proposal B:
                 {"responseHeader":{"status":0,"QTime":1},"status":{"state":"notfound","msg":"Did not find [1103] in any tasks queue"}}
 
         8a.4. Check if all collections are empty:
-            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "http://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/select?q=*:*&distrib=false&wt=json" && \
-            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "http://$INFRASOLRHOST:$INFRASOLRPORT/solr/vertex_index/select?q=*:*&distrib=false&wt=json" && \
+            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "http://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/select?q=*:*&distrib=false&wt=json"
+            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "http://$INFRASOLRHOST:$INFRASOLRPORT/solr/vertex_index/select?q=*:*&distrib=false&wt=json"
             curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "http://$INFRASOLRHOST:$INFRASOLRPORT/solr/edge_index/select?q=*:*&distrib=false&wt=json"
                 {"responseHeader":{"status":0,"QTime":7,"params":{"q":"*:*","distrib":"false","wt":"json"}},"response":{"numFound":0,"start":0,"docs":[]}}
                 {"responseHeader":{"status":0,"QTime":0,"params":{"q":"*:*","distrib":"false","wt":"json"}},"response":{"numFound":0,"start":0,"docs":[]}}
@@ -199,3 +211,5 @@ Proposal B:
             2019-01-14 21:07:54.751 Graph shutdown!
             ==>null
             gremlin> quit
+
+    11. Start Atlas service from Ambari UI.
