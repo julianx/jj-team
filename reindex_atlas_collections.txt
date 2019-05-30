@@ -105,107 +105,110 @@ Proposal B:
             ln -s /etc/ambari-infra-solr/conf/infra_solr_jaas.conf infra_solr_jaas.conf # <<<  When running a secure cluster.
             ln -s /etc/ambari-infra-solr/conf/security.json security.json # <<<  When running a secure cluster.
 
-    8. WARNING: Before running the tool, STOP Atlas and check the Solr env, then follow the 8a steps if your cluster is kerberized or 8b otherwise:
-	Set these values:
+    7. WARNING: Before running the tool, STOP Atlas and check the Solr env, then follow the 8a steps if your cluster is kerberized or 8b otherwise.
 
-    INFRASOLRHTTP=http # https
-	INFRASOLRHOST=example.cloudera.com # The FQDN for the Ambari Infra Solr server host. Ambari Infra > Summary > Infra Solr Instance
-	INFRASOLRPORT=8886 # The Ambari Infra Solr server port. Ambari Infra > Configs > Advanced > Advanced infra-solr-env > Infra Solr port
+        Set these values for either of the following 8a or 8b steps so you don't have to specify them every time by hand:
+            INFRASOLRHTTP=http # https
+            INFRASOLRHOST=example.cloudera.com # The FQDN for the Ambari Infra Solr server host. Ambari Infra > Summary > Infra Solr Instance
+            INFRASOLRPORT=8886 # The Ambari Infra Solr server port. Ambari Infra > Configs > Advanced > Advanced infra-solr-env > Infra Solr port
 
-	== If you are running Kerberos on your cluster, run the following 8a steps, else, continue with 8b ==
-        8a.1. Kinit as atlas user with the command line,  before running this utility:
-            # For example: kinit -kt /etc/security/keytabs/atlas.service.keytab atlas/example.cloudera.com@CLOUDERA.COM
-            kinit -kt /etc/security/keytabs/atlas.service.keytab atlas/$(hostname -f)
+	    7a. == Run this section if you are running Kerberos on your cluster, else continue on 7b. ==
+            7a.1. Kinit as atlas user with the command line,  before running this utility:
+                # For example: kinit -kt /etc/security/keytabs/atlas.service.keytab atlas/example.cloudera.com@CLOUDERA.COM
+                kinit -kt /etc/security/keytabs/atlas.service.keytab atlas/$(hostname -f)
 
-        8a.2. Check for the available collections in the Solr environment. They should be available for the next step, deleting their contents.
-            curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=LIST&wt=json"
-                # Example response. Please notice the "fulltext_index","vertex_index","edge_index" entries under "collections".
-                #   {"responseHeader":{
-                #       "status":0,
-                #       "QTime":0},
-                #   "collections":["edge_index",    <<< Edge index
-                #       "vertex_index",             <<< Vertex index
-                #       "hadoop_logs",
-                #       "history",
-                #       "fulltext_index",           <<< Full text
-                #       "audit_logs"]}
+            7a.2. Check for the available collections in the Solr environment. They should be available for the next step, deleting their contents.
+                curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=LIST&wt=json"
+                    # Example response. Please notice the "fulltext_index","vertex_index","edge_index" entries under "collections".
+                    #   {"responseHeader":{
+                    #       "status":0,
+                    #       "QTime":0},
+                    #   "collections":["edge_index",    <<< Edge index
+                    #       "vertex_index",             <<< Vertex index
+                    #       "hadoop_logs",
+                    #       "history",
+                    #       "fulltext_index",           <<< Full text
+                    #       "audit_logs"]}
 
-        8a.3. Remove the indexed data from the Atlas collections:
-            curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/update?commit=true&async=delete_fulltext_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
-            curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/vertex_index/update?commit=true&async=delete_vertex_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
-            curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/edge_index/update?commit=true&async=delete_edge_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
-                # Example response:
-                #   {"responseHeader":{
-                #       "status":0,
-                #       "QTime":6},
-                #   "requestid":"delete_vertex_index"}
+            7a.3. Remove the indexed data from the Atlas collections:
+                curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/update?commit=true&async=delete_fulltext_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
+                curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/vertex_index/update?commit=true&async=delete_vertex_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
+                curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/edge_index/update?commit=true&async=delete_edge_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
+                    # Example response:
+                    #   {"responseHeader":{
+                    #       "status":0,
+                    #       "QTime":6},
+                    #   "requestid":"delete_vertex_index"}
 
-        8a.4. Get status on the executing jobs:
-            curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_fulltext_index&wt=json"
-            curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_vertex_index&wt=json"
-            curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_edge_index&wt=json"
-                # Example response. If the queries already finished, they should show as completed:
-                #   "delete_edge_index9227581747905217":{
-                #       "responseHeader":{
-                #       "status":0,
-                #       "QTime":0},
-                #   "STATUS":"completed",            <<< Status: completed.
+            7a.4. Get status on the executing jobs:
+                curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_fulltext_index&wt=json"
+                curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_vertex_index&wt=json"
+                curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_edge_index&wt=json"
+                    # Example response. If the queries already finished, they should show as completed:
+                    #   "delete_edge_index9227581747905217":{
+                    #       "responseHeader":{
+                    #       "status":0,
+                    #       "QTime":0},
+                    #   "STATUS":"completed",            <<< Status: completed.
 
-        8a.5. Check if all collections are empty:
-            curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/select?q=*:*&distrib=false&wt=json"
-            curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/vertex_index/select?q=*:*&distrib=false&wt=json"
-            curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/edge_index/select?q=*:*&distrib=false&wt=json"
-                # Example response. The number of records found for those collections is now zero, as expected.
-                #   {"responseHeader":{"status":0,"QTime":7,"params":{"q":"*:*","distrib":"false","wt":"json"}},"response":{"numFound":0,"start":0,"docs":[]}}
+            7a.5. Check if all collections are empty:
+                curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/select?q=*:*&distrib=false&wt=json"
+                curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/vertex_index/select?q=*:*&distrib=false&wt=json"
+                curl -k --negotiate -u : "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/edge_index/select?q=*:*&distrib=false&wt=json"
+                    # Example response. The number of records found for those collections is now zero, as expected.
+                    #   {"responseHeader":{"status":0,"QTime":7,"params":{"q":"*:*","distrib":"false","wt":"json"}},"response":{"numFound":0,"start":0,"docs":[]}}
 
-        [End of 8a.]
-        --
-        8b.1. Check the available collections in the Solr environment:
-            export INFRASOLRHOST="example.cloudera.com"
-            export INFRASOLRPORT=8886
-            export USERNAME=admin
-            export PASS=admin
-            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=LIST&wt=json"
-                # Example response. Please notice the "fulltext_index","vertex_index","edge_index" entries under "collections".
-                #   {"responseHeader":{
-                #       "status":0,
-                #       "QTime":0},
-                #   "collections":["edge_index",    <<< Edge index
-                #       "vertex_index",             <<< Vertex index
-                #       "hadoop_logs",
-                #       "history",
-                #       "fulltext_index",           <<< Full text
-                #       "audit_logs"]}
+        [End of 7a.]
 
-        8a.2. Remove the indexed data from the collections:
-            curl -u $USERNAME -p "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/update?commit=true&async=delete_fulltext_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
-            curl -u $USERNAME -p "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/vertex_index/update?commit=true&async=delete_vertex_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
-            curl -u $USERNAME -p "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/edge_index/update?commit=true&async=delete_edge_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
-                # Example response:
-                #   {"responseHeader":{
-                #       "status":0,
-                #       "QTime":6},
-                #   "requestid":"delete_vertex_index"}
+        7b. == Run this section if you are running a non kerberized cluster, else go back to 7a. ==
+            7b.1. Check the available collections in the Solr environment:
+                Note: Make sure you already set the values for $INFRASOLRHTTP, INFRASOLRHOST and INFRASOLRPORT, then set the value for USERNAME. Also, the password to input is the one you use with Ambari Infra Solr UI.
 
-        8a.3. Get status on the executing jobs:
-            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_fulltext_index&wt=json"
-            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_vertex_index&wt=json"
-            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_edge_index&wt=json"
-                # Example response. If the queries already finished, they should show as completed for the field "STATUS":
-                #   "delete_edge_index9227581747905217":{
-                #       "responseHeader":{
-                #       "status":0,
-                #       "QTime":0},
-                #   "STATUS":"completed", <<< Status: completed.
+                export USERNAME=admin
 
-        8a.4. Check if all collections are empty:
-            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/select?q=*:*&distrib=false&wt=json"
-            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/vertex_index/select?q=*:*&distrib=false&wt=json"
-            curl -u $USERNAME:$PASS -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/edge_index/select?q=*:*&distrib=false&wt=json"
-                # Example response. The number of records found for those collections is now zero, as expected.
-                #   {"responseHeader":{"status":0,"QTime":7,"params":{"q":"*:*","distrib":"false","wt":"json"}},"response":{"numFound":0,"start":0,"docs":[]}}
+                curl -u $USERNAME -p -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=LIST&wt=json"
+                    # Example response. Please notice the "fulltext_index","vertex_index","edge_index" entries under "collections".
+                    #   {"responseHeader":{
+                    #       "status":0,
+                    #       "QTime":0},
+                    #   "collections":["edge_index",    <<< Edge index
+                    #       "vertex_index",             <<< Vertex index
+                    #       "hadoop_logs",
+                    #       "history",
+                    #       "fulltext_index",           <<< Full text
+                    #       "audit_logs"]}
 
-    9. Start Gremlin shell by executing the following command:
+            7b.2. Remove the indexed data from the collections:
+                curl -u $USERNAME -p "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/update?commit=true&async=delete_fulltext_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
+                curl -u $USERNAME -p "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/vertex_index/update?commit=true&async=delete_vertex_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
+                curl -u $USERNAME -p "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/edge_index/update?commit=true&async=delete_edge_index" -H "Content-Type: text/xml" --data-binary "<delete><query>*</query></delete>"
+                    # Example response:
+                    #   {"responseHeader":{
+                    #       "status":0,
+                    #       "QTime":6},
+                    #   "requestid":"delete_vertex_index"}
+
+            7b.3. Get status on the executing jobs:
+                curl -u $USERNAME -p -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_fulltext_index&wt=json"
+                curl -u $USERNAME -p -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_vertex_index&wt=json"
+                curl -u $USERNAME -p -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/admin/collections?action=REQUESTSTATUS&requestid=delete_edge_index&wt=json"
+                    # Example response. If the queries already finished, they should show as completed for the field "STATUS":
+                    #   "delete_edge_index9227581747905217":{
+                    #       "responseHeader":{
+                    #       "status":0,
+                    #       "QTime":0},
+                    #   "STATUS":"completed", <<< Status: completed.
+
+            7b.4. Check if all collections are empty:
+                curl -u $USERNAME -p -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/fulltext_index/select?q=*:*&distrib=false&wt=json"
+                curl -u $USERNAME -p -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/vertex_index/select?q=*:*&distrib=false&wt=json"
+                curl -u $USERNAME -p -H 'X-Requested-By: ambari' "$INFRASOLRHTTP://$INFRASOLRHOST:$INFRASOLRPORT/solr/edge_index/select?q=*:*&distrib=false&wt=json"
+                    # Example response. The number of records found for those collections is now zero, as expected.
+                    #   {"responseHeader":{"status":0,"QTime":7,"params":{"q":"*:*","distrib":"false","wt":"json"}},"response":{"numFound":0,"start":0,"docs":[]}}
+
+        [End of 7b.]
+
+    8. Start Gremlin shell by executing the following command:
         cd .. # You should have the bin folder on this same level.
         # Current directory: ~/titan-0.5.4-hadoop2/
         export PATH=$PATH:$(dirname $(ps -ef | grep hive | head -1 | awk '{print $8}')) # Get the java path for the cluster services.
@@ -221,7 +224,7 @@ Proposal B:
             #    ==>true
             #    gremlin>
 
-    10. Start index repair by entering the following in the Gremlin shell:
+    9. Start index repair by entering the following in the Gremlin shell:
         repairAtlasIndex("atlas-conf/atlas-titan.properties")
             # Example output:
             #    Initializing graph..
@@ -239,5 +242,5 @@ Proposal B:
             #    Graph shutdown!
             #    ==>null
 
-    11. You can now exit the Gremlin promt and start Atlas service from Ambari UI.
+    10. You can now exit the Gremlin promt and start Atlas service from Ambari UI.
         # gremlin> quit
