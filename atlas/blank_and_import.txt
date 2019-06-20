@@ -1,0 +1,35 @@
+For blanking the storage endpoints, please follow these steps:
+
+0) Stop Atlas.
+
+1) Open Solr Web UI, go to "Core Admin" menu, and select "edge_index_shard1_replica1", then click "Unload". Login to a node which has hbase client, and start "hbase shell".
+
+2) Login to a node which has hbase client, and start "hbase shell", then run the following commands:
+    disable 'atlas_titan'
+    disable 'ATLAS_ENTITY_AUDIT_EVENTS'
+    drop 'atlas_titan'
+    drop 'ATLAS_ENTITY_AUDIT_EVENTS'
+
+    # Example output:
+    # hbase(main):005:0* disable 'atlas_titan'
+    # 0 row(s) in 2.5150 seconds
+    #
+    # hbase(main):006:0>
+    # hbase(main):007:0* disable 'ATLAS_ENTITY_AUDIT_EVENTS'
+    # 0 row(s) in 2.2400 seconds
+    #
+    # hbase(main):008:0>
+    # hbase(main):009:0* drop 'atlas_titan'
+    # 0 row(s) in 1.2620 seconds
+    #
+    # hbase(main):010:0>
+    # hbase(main):011:0* drop 'ATLAS_ENTITY_AUDIT_EVENTS'2
+
+3) Start Atlas UI, wait for it to finish starting up and try logging into it. If everything goes fine, log out and stop the service once again.
+
+4) Run the import-hive.sh script as shown in this article: https://community.hortonworks.com/articles/61274/import-hive-metadata-into-atlas.html
+    Log into node with Atlas server.
+    Switch to hive user: su - hive
+    source /etc/hadoop/conf/hadoop-env.sh
+    export ATLASCPPATH=$ATLASCPPATH:/usr/hdp/current/hbase-client/lib/hbase-common.jar
+    /usr/hdp/current/atlas-client/hook-bin/import-hive.sh
