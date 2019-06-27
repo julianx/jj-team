@@ -1,0 +1,9 @@
+Get all ambari configs
+    Please attach the running config for the cluster as well. You can get it by running this curl command on the Ambari server host or logging into Ambari UI from the browser and pasting it on the address bar:
+
+    curl -k -u <USERNAME> -p "$(hostname -f):<PORT>/api/v1/clusters/<CLUSTER>/configurations/service_config_versions?is_current=true" -o current_config.json
+
+    Please make sure to replace all of the placeholders before running the command: <USERNAME>, <PORT>, <CLUSTER>.
+
+    i.e:
+    curl -k -u admin -p "$(hostname -f):8080/api/v1/clusters/myCluster/configurations/service_config_versions?is_current=true" -o current_config.json
